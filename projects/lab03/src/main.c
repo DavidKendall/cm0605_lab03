@@ -11,32 +11,50 @@
 #include <stdint.h>
 #include <bsp.h>
 #include <leds.h>
+#include <buttons.h>
 #include <scheduler.h>
 
 void linkLedToggleTask(void);
 void connectLedToggleTask(void);
+void buttonsTask(void);
+
+bool flashing = false;
 
 int main () {
   
-  /* Initialise the board support package */
-  
-  /* Initialise the scheduler. 1 ms tick (see ttSchedConfig.h) */
-  
-  /* Add tasks to the scheduler table */
-  
-  /* Start the scheduler */
+  bspInit();
+  schInit();
+  schAddTask(buttonsTask, 0, 100);
+  schAddTask(linkLedToggleTask, 0, 250);
+  schAddTask(connectLedToggleTask, 0, 500);
 
+
+  schStart();
+  
   while (true) {
-    /* Main loop -- dispatch tasks */
+    schDispatch();
   }
 }
 
 
 void linkLedToggleTask(void) {
-    /* toggle the link led */
+  if (flashing) {
+    ledToggle(USB_LINK_LED);
+  }
 }
 
 void connectLedToggleTask(void) {
-    /* toggle the connect led */
+  if (flashing) {
+    ledToggle(USB_CONNECT_LED);
+  }
 }
 
+void buttonsTask(void) {
+  if (isButtonPressed(BUT_1)) {
+    flashing = true;
+  } else if (isButtonPressed(BUT_2)) {
+    flashing = false;
+    ledSetState(USB_LINK_LED, LED_OFF);
+    ledSetState(USB_CONNECT_LED, LED_OFF);
+  }
+}

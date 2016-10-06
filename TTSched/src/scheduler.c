@@ -11,42 +11,49 @@ static schTCB_t schTasks[TT_SCHED_MAX_TASKS];
 
 
 void schInit(void) {   // initialise the scheduler
-  /* Loop to set all TCBs in the task array to zeroes */
   
-  /* Initialise TIMER0 to tick at tickHz and use schUpdate
-   * as the interrupt handler
-   */
+  for (uint8_t i = 0; i < TT_SCHED_MAX_TASKS; i+=1) {
+    schTasks[i].task = (pVoidFunc_t)0;
+    schTasks[i].delay = 0;
+    schTasks[i].period = 0;
+    schTasks[i].invocations = 0;
+  }
+  initTimer(TIMER0, schUpdate, TT_SCHED_TICK_HZ);
 }
 
 void schStart(void) {           // start ticking
-  /* Start TIMER0     */
-  
-  /* Enable interrupts */
+  startTimer(TIMER0);
+  __enable_interrupt();
 }
 
 void schUpdate(void) {          // update after a tick -- ISR
-
-  /* Loop 
-   * Check each entry in the task array
-   *   if the entry is not empty then
-   *     if the delay field for the entry is 0, increment invocations
-   *       if the period is non-zero, reset the delay field to the period
-   *     else
-   *       decrement the delay field, not ready to run yet
-   */
+  
+  for (uint8_t i = 0; i < TT_SCHED_MAX_TASKS; i+=1) {
+    if (schTasks[i].task) {
+      if (schTasks[i].delay == 0) {
+        schTasks[i].invocations += 1;
+        if (schTasks[i].period) {
+          schTasks[i].delay = schTasks[i].period;
+        }
+      } else {
+        schTasks[i].delay -= 1;
+      }
+    }
+  }
 }
 
 void schDispatch(void) {       // run the next task
-
-  /* Loop
-   * Check each entry in the task array
-   *   if invocations > 0, run the task, decrement invocations
-   *     if the period is 0 this is a one-shot task so remove it
-   *     from the task array
-   * End loop
-   */
-
-  /* Go to sleep */
+  
+  for (uint8_t i = 0; i < TT_SCHED_MAX_TASKS; i+=1) {
+    if (schTasks[i].invocations > 0) {
+      (*(schTasks[i].task))();
+      schTasks[i].invocations -= 1;
+      if (schTasks[i].period == 0) {
+        schRemoveTask(i);
+      }
+    }
+  }
+  schSleep();
 }
 
 void schAddTask(               // add a task to the task set
@@ -70,10 +77,11 @@ void schRemoveTask(            // remove a set from the task set
   uint8_t id) {                  // identifier of the task to remove
     
   assert((id < TT_SCHED_MAX_TASKS) && (schTasks[id].task != (pVoidFunc_t)0));
-
-/* For the entry in the task array at position id,
- * set the value of all components to 0
- */
+  
+  schTasks[id].task = (pVoidFunc_t)0;
+  schTasks[id].delay = 0;
+  schTasks[id].period = 0;
+  schTasks[id].invocations = 0;
 }
 
 void schSleep(void) {         // go to sleep to save power
